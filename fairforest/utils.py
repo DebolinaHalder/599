@@ -12,8 +12,12 @@ def DP(data, labels, protectedIndex, protectedValue):
     elseClass = [(x,l) for (x,l) in zip(data, labels) 
         if x[protectedIndex] != protectedValue]
  
-    if len(protectedClass) == 0 or len(elseClass) == 0:
-      raise Exception("One of the classes is empty!")
+    if len(protectedClass) == 0:
+        protectedProb = 0
+        elseProb = sum(1 for (x,l) in elseClass  if l == 1) / len(elseClass)
+    elif len(elseClass) == 0:
+        elseProb = 0
+        protectedProb = sum(1 for (x,l) in protectedClass if l == 1) / len(protectedClass)
     else:
       protectedProb = sum(1 for (x,l) in protectedClass if l == 1) / len(protectedClass)
       elseProb = sum(1 for (x,l) in elseClass  if l == 1) / len(elseClass)
