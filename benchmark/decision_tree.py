@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from fairforest import d_tree
 from fairforest import utils
+import warnings
+#%%
+warnings.simplefilter("ignore")
 # %%
 df = pd.read_csv("dataset/adult.csv")
 df = df[0:100]
@@ -22,6 +25,10 @@ for key, value in fairness_importance.items():
     print(key, value)
 # %%
 for key, value in feature_importance.items():
+    print(key, value)
+
+#%%
+for key, value in model_dtree.feature.items():
     print(key, value)
 
 # %%

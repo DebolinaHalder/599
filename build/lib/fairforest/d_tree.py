@@ -67,7 +67,7 @@ class DecisionTree(Tree):
                     max_gain = GINIgain
         print("spliting done")
         print(best_feature, best_value)
-        return best_feature, best_value
+        return best_feature, best_value, GINIgain
 
     def fit(self,X,y):
         self.total_classes = len(np.unique(y))
@@ -104,8 +104,8 @@ class DecisionTree(Tree):
             self.leaf_to_posterior[node] = posterior
             prediction = np.full(len(y_), np.argmax(posterior))
             self.parity[node] = DP(X_.to_numpy(),prediction,self.protected_attribute, self.protected_val)
-            best_feature, best_value = self._best_split(X_,y_)
-            if best_feature:
+            best_feature, best_value, giniGain = self._best_split(X_,y_)
+            if best_feature is not None:
                 df = X_.copy()
                 df['Y'] = y_
                 self.feature[node] = best_feature
@@ -122,7 +122,7 @@ class DecisionTree(Tree):
                 self.children_right[node] = right_node
                 build_tree(left_df, left_target,left_node)
                 build_tree(right_df, right_target, right_node)
-            else:
+            elif giniGain < 0.001 or best_feature is None:
                 self.node_count += 1
                 self.children_left[node] = -2
                 self.children_right[node] = -2
