@@ -21,7 +21,7 @@ setup(
     maintainer="Debolina Ha;der Lina",
     maintainer_email="dl73@gmail.com",
     description="A fairness importance score",
-    long_description=LONG_DESCRIPTION,
+    #long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     url="https://github.com/DebolinaHalder/599",
     license="MIT",

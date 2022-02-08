@@ -1,0 +1,23 @@
+Metadata-Version: 2.1
+Name: fairforest
+Version: 0.0.1
+Summary: A fairness importance score
+Home-page: https://github.com/DebolinaHalder/599
+Author: Debolina Halder Lina
+Author-email: dl73@gmail.com
+Maintainer: Debolina Ha;der Lina
+Maintainer-email: dl73@gmail.com
+License: MIT
+Platform: UNKNOWN
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+UNKNOWN
+
