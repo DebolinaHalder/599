@@ -31,8 +31,9 @@ class DecisionTree(Tree):
 
         best_feature = None
         best_value = None
-        
-        for feature in self.feature_list:
+        f_list = self.feature_list.copy()
+        f_list.remove('sex')
+        for feature in f_list:
             Xdf = df.dropna().sort_values(feature)
             xmeans = ma(Xdf[feature].unique(), 2)
 
@@ -122,7 +123,7 @@ class DecisionTree(Tree):
                 self.children_right[node] = right_node
                 build_tree(left_df, left_target,left_node)
                 build_tree(right_df, right_target, right_node)
-            elif giniGain < 0.001 or best_feature is None:
+            elif giniGain < 0.01 or best_feature is None:
                 self.node_count += 1
                 self.children_left[node] = -2
                 self.children_right[node] = -2
@@ -139,11 +140,11 @@ class DecisionTree(Tree):
         for i in range (self.node_count):
             if i in self.feature.keys():
                 if self.feature[i] != -2:
-                    self.feature_important_score[self.feature[i]] += (self.impurity[i] - (self.impurity[self.children_left[i]] + self.impurity[self.children_right[i]]))
+                    self.feature_important_score[self.feature[i]] += ((self.impurity[i] - (self.impurity[self.children_left[i]] + self.impurity[self.children_right[i]]))) ** 2
                     number_of_times[self.feature[i]] += 1
-        for key, value in number_of_times.items():
-            if value != 0:
-                self.feature_important_score[key] /= value
+        #for key, value in number_of_times.items():
+        #    if value != 0:
+        #        self.feature_important_score[key] /= value
         return self.feature_important_score
 
     def _fairness_importance(self):
