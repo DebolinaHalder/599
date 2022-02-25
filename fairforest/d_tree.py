@@ -3,11 +3,11 @@ from .base import Tree
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 import pandas as pd
-from .utils import DP, gini, ma
+from .utils import DP, eqop, gini, ma
 from collections import Counter
 # %%
 class DecisionTree(Tree):
-    def __init__(self, protected_attribute, protected_value):
+    def __init__(self, protected_attribute, protected_value, protected_feature,fairness_metric):
         super().__init__()
         
         self.children_left = {}
@@ -20,6 +20,8 @@ class DecisionTree(Tree):
         self.number_of_data_points = {}
         self.protected_attribute = protected_attribute
         self.protected_val = protected_value
+        self.protected_feature = protected_feature
+        self.fairness_metric = fairness_metric
     
     def _best_split(self,X,y):
         print("spliting")
@@ -32,7 +34,7 @@ class DecisionTree(Tree):
         best_feature = None
         best_value = None
         f_list = self.feature_list.copy()
-        f_list.remove('sex')
+        f_list.remove(self.protected_feature)
         for feature in f_list:
             Xdf = df.dropna().sort_values(feature)
             xmeans = ma(Xdf[feature].unique(), 2)
@@ -92,10 +94,13 @@ class DecisionTree(Tree):
                 self.impurity[node] = 0
                 self.threshold[node] = None
                 posterior = np.zeros(self.total_classes, dtype=float)
-                posterior[classes] = 1
+                posterior[int(classes)] = 1
                 self.leaf_to_posterior[node] = posterior
                 prediction = np.full(len(y_), np.argmax(posterior))
-                self.parity[node] = DP(X_.to_numpy(),prediction,self.protected_attribute, self.protected_val)
+                if self.fairness_metric == 1:
+                    self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
+                elif self.fairness_metric == 2:
+                    self.parity[node] = DP(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
                 return
             
             self.impurity[node] = gini(y_)
@@ -104,7 +109,11 @@ class DecisionTree(Tree):
                 posterior[i] = count[i] / len(y_)
             self.leaf_to_posterior[node] = posterior
             prediction = np.full(len(y_), np.argmax(posterior))
-            self.parity[node] = DP(X_.to_numpy(),prediction,self.protected_attribute, self.protected_val)
+            if self.fairness_metric == 1:
+                self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
+            elif self.fairness_metric == 2:
+                self.parity[node] = DP(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
+            #self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
             best_feature, best_value, giniGain = self._best_split(X_,y_)
             if best_feature is not None:
                 df = X_.copy()
@@ -140,7 +149,9 @@ class DecisionTree(Tree):
         for i in range (self.node_count):
             if i in self.feature.keys():
                 if self.feature[i] != -2:
-                    self.feature_important_score[self.feature[i]] += ((self.impurity[i] - (self.impurity[self.children_left[i]] + self.impurity[self.children_right[i]]))) ** 2
+                    self.feature_important_score[self.feature[i]] += ((self.impurity[i] - 
+                    (self.impurity[self.children_left[i]]*self.number_of_data_points[self.children_left[i]]/self.number_of_data_points[i] + 
+                    self.impurity[self.children_right[i]]*self.number_of_data_points[self.children_right[i]]/self.number_of_data_points[i])) ** 2)
                     number_of_times[self.feature[i]] += 1
         #for key, value in number_of_times.items():
         #    if value != 0:
@@ -149,13 +160,14 @@ class DecisionTree(Tree):
 
     def _fairness_importance(self):
         for i in self.feature_list:
-            
             self.fairness_score[i] = 0
         number_of_times = dict.fromkeys(self.feature_list, 0)
         for i in range (self.node_count):
             if i in self.feature.keys():
                 if self.feature[i] != -2:
-                    self.fairness_score[self.feature[i]] += ((self.impurity[self.children_right[i]] + self.impurity[self.children_left[i]]) - self.impurity[i])
+                    self.fairness_score[self.feature[i]] += (self.parity[i] - 
+                    (self.parity[self.children_right[i]] *self.number_of_data_points[self.children_left[i]]/self.number_of_data_points[i]
+                     + self.parity[self.children_left[i]]*self.number_of_data_points[self.children_right[i]]/self.number_of_data_points[i]))
                     number_of_times[self.feature[i]] += 1
         for key, value in number_of_times.items():
             if value != 0:
@@ -166,3 +178,4 @@ class DecisionTree(Tree):
         return
     def predict_proba(self, X):
         return
+# %%

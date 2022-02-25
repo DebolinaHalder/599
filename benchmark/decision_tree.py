@@ -14,7 +14,7 @@ df = df.drop('income-per-year',1)
 target = np.where(target == -1, 0, target)
 
 # %%
-model_dtree = d_tree.DecisionTree(4,0)
+model_dtree = d_tree.DecisionTree(3,0)
 model_dtree.fit(df,target)
 # %%
 feature_importance = model_dtree._feature_importance()

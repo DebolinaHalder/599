@@ -2,11 +2,34 @@
 import numpy as np
 import pandas as pd
 from collections import Counter
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
-
+def eqop(data,label, prediction, protectedIndex, protectedValue):
+    protected = [(x,l,p) for (x,l,p) in zip(data,label, prediction) 
+        if (x[protectedIndex] == protectedValue and l==1)]   
+    el = [(x,l,p) for (x,l,p) in zip(data,label, prediction) 
+        if (x[protectedIndex] != protectedValue and l==1)]
+    tp_protected = sum(1 for (x,l,p) in protected if l == p)
+    
+    tp_el = sum(1 for (x,l,p) in el if l == p)
+    if len(protected) != 0 and len(el) != 0:
+        tpr_protected = tp_protected / len(protected)
+        tpr_el = tp_el / len(el)
+    elif len(protected) == 0 and len(el) == 0:
+        tpr_protected = 0
+        tpr_el = 0
+    elif len(el) == 0:
+        tpr_protected = tp_protected / len(protected)
+        tpr_el = 0
+    else:
+        tpr_protected = 0
+        tpr_el = tp_el / len(el)
+    
+    return tpr_el - tpr_protected
 # %%
-def DP(data, labels, protectedIndex, protectedValue):
+def DP(data, labels, prediction, protectedIndex, protectedValue):
     protectedClass = [(x,l) for (x,l) in zip(data, labels) 
         if x[protectedIndex] == protectedValue]   
     elseClass = [(x,l) for (x,l) in zip(data, labels) 
@@ -39,3 +62,11 @@ def ma(x, window):
         return np.convolve(x, np.ones(window), 'valid') / window
 
 #%%
+def draw_plot(x,y,dest):
+    sns.set_context("talk")
+    fig = plt.figure(figsize = (10, 5))
+    plt.bar(x, y)
+    plt.xlabel("Feature")
+    plt.ylabel("Fairness Score")
+    plt.savefig(dest)
+    plt.show()
