@@ -1,9 +1,10 @@
 #%%
+from asyncio.windows_events import NULL
 from .base import Tree
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 import pandas as pd
-from .utils import DP, eqop, gini, ma
+from .utils import fairness, gini, ma
 from collections import Counter
 # %%
 class DecisionTree(Tree):
@@ -16,7 +17,7 @@ class DecisionTree(Tree):
         self.leaf_to_posterior = {}
         self.threshold = {}
         self.impurity={}
-        self.parity={}
+        self.fair_score={}
         self.number_of_data_points = {}
         self.protected_attribute = protected_attribute
         self.protected_val = protected_value
@@ -77,8 +78,9 @@ class DecisionTree(Tree):
         self.feature_list = list(X.columns)
         self.feature_size = len(self.feature_list)
         self.node_count = 1
-        self.fairness_score = {}
+        self.fairness_importance_score = {}
         self.feature_important_score = {}
+
         self.X = X
         self.y = y
         def build_tree(X_, y_, node):
@@ -96,11 +98,9 @@ class DecisionTree(Tree):
                 posterior = np.zeros(self.total_classes, dtype=float)
                 posterior[int(classes)] = 1
                 self.leaf_to_posterior[node] = posterior
-                prediction = np.full(len(y_), np.argmax(posterior))
-                if self.fairness_metric == 1:
-                    self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
-                elif self.fairness_metric == 2:
-                    self.parity[node] = DP(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
+                #prediction = np.full(len(y_), np.argmax(posterior))
+                self.fair_score[node] = NULL
+                
                 return
             
             self.impurity[node] = gini(y_)
@@ -108,11 +108,7 @@ class DecisionTree(Tree):
             for i in range(self.total_classes):
                 posterior[i] = count[i] / len(y_)
             self.leaf_to_posterior[node] = posterior
-            prediction = np.full(len(y_), np.argmax(posterior))
-            if self.fairness_metric == 1:
-                self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
-            elif self.fairness_metric == 2:
-                self.parity[node] = DP(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
+            #prediction = np.full(len(y_), np.argmax(posterior))
             #self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
             best_feature, best_value, giniGain = self._best_split(X_,y_)
             if best_feature is not None:
@@ -130,6 +126,7 @@ class DecisionTree(Tree):
                 self.node_count += 2
                 self.children_left[node] = left_node
                 self.children_right[node] = right_node
+                self.fair_score[node] =  fairness(left_df.to_numpy(),left_target,right_df.to_numpy(),right_target,self.protected_attribute, self.protected_val,self.fairness_metric)
                 build_tree(left_df, left_target,left_node)
                 build_tree(right_df, right_target, right_node)
             elif giniGain < 0.01 or best_feature is None:
@@ -138,6 +135,7 @@ class DecisionTree(Tree):
                 self.children_right[node] = -2
                 self.feature[node] = -2
                 self.threshold[node] = None
+                self.fair_score[node] = NULL
                 return
         build_tree(X,y,0)
 
@@ -160,19 +158,17 @@ class DecisionTree(Tree):
 
     def _fairness_importance(self):
         for i in self.feature_list:
-            self.fairness_score[i] = 0
+            self.fairness_importance_score[i] = 0
         number_of_times = dict.fromkeys(self.feature_list, 0)
         for i in range (self.node_count):
             if i in self.feature.keys():
                 if self.feature[i] != -2:
-                    self.fairness_score[self.feature[i]] += (self.parity[i] - 
-                    (self.parity[self.children_right[i]] *self.number_of_data_points[self.children_left[i]]/self.number_of_data_points[i]
-                     + self.parity[self.children_left[i]]*self.number_of_data_points[self.children_right[i]]/self.number_of_data_points[i]))
+                    self.fairness_importance_score[self.feature[i]] += self.fair_score[i]
                     number_of_times[self.feature[i]] += 1
         for key, value in number_of_times.items():
             if value != 0:
-                self.fairness_score[key] /= value
-        return self.fairness_score
+                self.fairness_importance_score[key] /= value
+        return self.fairness_importance_score
 
     def predict(self,x):
         return

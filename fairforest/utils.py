@@ -70,3 +70,18 @@ def draw_plot(x,y,dest):
     plt.ylabel("Fairness Score")
     plt.savefig(dest)
     plt.show()
+
+#%%
+def fairness(leftX,lefty,rightX,righty,protected_attribute,protected_val,fairness_metric):
+    valueLeft, countLeft = np.unique(lefty, return_counts=True)
+    valueRight, countRight = np.unique(righty, return_counts=True)
+    pred_left = np.full(len(lefty), np.argmax(countLeft))
+    pred_right = np.full(len(righty), np.argmax(countRight))
+    x = np.concatenate((leftX,rightX),axis=0)
+    y = np.concatenate((lefty,lefty),axis = 0)
+    Prediction = np.concatenate((pred_left,pred_right), axis = 0)
+    if fairness_metric == 1:
+        fairness_score = eqop(x,y,Prediction,protected_attribute,protected_val)
+    else:
+        fairness_score = DP(x,y,Prediction,protected_attribute,protected_val)
+    return fairness_score

@@ -47,21 +47,37 @@ dataframe = pd.DataFrame(x, columns = column)
 model_dtree = d_tree.DecisionTree(20,0,'21',1)
 model_dtree.fit(dataframe,y)
 
-#%%
-feature_importance = model_dtree._feature_importance()
+
 # %%
 fairness_importance = model_dtree._fairness_importance()
 # %%
-x=[]
+feature = []
+score = []
 y=[]
 for key, value in fairness_importance.items():
     print(key, value)
-    x.append(key)
-    y.append(value)
-utils.draw_plot(x,y,"Results/Synthetic/eqop.pdf")
+    feature.append(key)
+    score.append((value))
+utils.draw_plot(feature,score,"Results/Synthetic/eqop.pdf")
+
+
+#%%
+model_dtree_dp = d_tree.DecisionTree(20,0,'21',2)
+model_dtree_dp.fit(dataframe,y)
+
+
 # %%
-for key, value in feature_importance.items():
+fairness_importance_dp = model_dtree_dp._fairness_importance()
+# %%
+feature = []
+score_dp = []
+y=[]
+for key, value in fairness_importance_dp.items():
     print(key, value)
+    feature.append(key)
+    score_dp.append((value))
+utils.draw_plot(feature,score_dp,"Results/Synthetic/DP.pdf")
+
 # %%
 count_z0 = count_z1 = 0
 count0 = count1 = 0
