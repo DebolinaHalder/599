@@ -4,7 +4,7 @@ from .base import Tree
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 import pandas as pd
-from .utils import fairness, gini, ma
+from .utils import fairness, gini, ma,eqop,DP
 from collections import Counter
 # %%
 class DecisionTree(Tree):
@@ -25,7 +25,7 @@ class DecisionTree(Tree):
         self.fairness_metric = fairness_metric
     
     def _best_split(self,X,y):
-        print("spliting")
+        #print("spliting")
         df = X.copy()
         df['Y'] = y
         GINI_base = gini(y)
@@ -69,8 +69,8 @@ class DecisionTree(Tree):
                     best_feature = feature
                     best_value = value 
                     max_gain = GINIgain
-        print("spliting done")
-        print(best_feature, best_value)
+        #print("spliting done")
+        #print(best_feature, best_value)
         return best_feature, best_value, GINIgain
 
     def fit(self,X,y):
@@ -84,11 +84,21 @@ class DecisionTree(Tree):
         self.X = X
         self.y = y
         def build_tree(X_, y_, node):
-            print("build tree for node ", node)
+            #print("build tree for node ", node)
             classes, count = np.unique(y_, return_counts=True)
             self.number_of_data_points[node] = len(y_)
+            if node == 0:
+                valuey, county = np.unique(y_, return_counts=True)
+                pred = np.full(len(y_), np.argmax(county))
+                if self.fairness_metric == 1:
+                    s = eqop(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
+                elif self.fairness_metric == 2:
+                    s = DP(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
+                print(s)
+                self.fair_score[node] = s
+                print(self.fair_score[node])
             if len(classes) == 1:
-                print("only one class for this node")
+                #print("only one class for this node")
                 #self.node_count += 1
                 self.children_left[node] = -2
                 self.children_right[node] = -2
@@ -99,7 +109,7 @@ class DecisionTree(Tree):
                 posterior[int(classes)] = 1
                 self.leaf_to_posterior[node] = posterior
                 #prediction = np.full(len(y_), np.argmax(posterior))
-                self.fair_score[node] = NULL
+                
                 
                 return
             
@@ -126,7 +136,7 @@ class DecisionTree(Tree):
                 self.node_count += 2
                 self.children_left[node] = left_node
                 self.children_right[node] = right_node
-                self.fair_score[node] =  fairness(left_df.to_numpy(),left_target,right_df.to_numpy(),right_target,self.protected_attribute, self.protected_val,self.fairness_metric)
+                self.fair_score[left_node] = self.fair_score[right_node] = fairness(left_df.to_numpy(),left_target,right_df.to_numpy(),right_target,self.protected_attribute, self.protected_val,self.fairness_metric)
                 build_tree(left_df, left_target,left_node)
                 build_tree(right_df, right_target, right_node)
             elif giniGain < 0.01 or best_feature is None:
@@ -135,7 +145,6 @@ class DecisionTree(Tree):
                 self.children_right[node] = -2
                 self.feature[node] = -2
                 self.threshold[node] = None
-                self.fair_score[node] = NULL
                 return
         build_tree(X,y,0)
 
@@ -163,7 +172,8 @@ class DecisionTree(Tree):
         for i in range (self.node_count):
             if i in self.feature.keys():
                 if self.feature[i] != -2:
-                    self.fairness_importance_score[self.feature[i]] += self.fair_score[i]
+                    print(self.feature[i],self.fair_score[i],self.fair_score[self.children_left[i]])
+                    self.fairness_importance_score[self.feature[i]] += (self.fair_score[i] - self.fair_score[self.children_left[i]])
                     number_of_times[self.feature[i]] += 1
         for key, value in number_of_times.items():
             if value != 0:
