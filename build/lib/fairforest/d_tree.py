@@ -47,7 +47,7 @@ class DecisionTree(Tree):
                 right_target = right_df['Y']
                 gini_left = gini(left_target.to_numpy())
                 gini_right = gini(right_target.to_numpy())
-                
+                #f_score = fairness(left_df.to_numpy(),left_target,right_df.to_numpy(),right_target,self.protected_attribute, self.protected_val,self.fairness_metric)
                 
 
                 
@@ -63,7 +63,7 @@ class DecisionTree(Tree):
 
                  
                 GINIgain = GINI_base - wGINI
-
+                #GINIgain = 1/2 * (GINIgain + 0.2*f_score)
                 #print("done with this feature")
                 if GINIgain > max_gain:
                     best_feature = feature
@@ -73,6 +73,14 @@ class DecisionTree(Tree):
         #print(best_feature, best_value)
         return best_feature, best_value, GINIgain
 
+    def _countzs(self,X_,y_):
+            x = X_.to_numpy()
+            pos_z0 = [(x,l) for (x,l) in zip(x,y_) if (x[self.protected_attribute] == self.protected_val and l==1)]
+            pos_z1 =  [(x,l) for (x,l) in zip(x,y_) if (x[self.protected_attribute] != self.protected_val and l==1)]
+            countz0 = [(x,l) for (x,l) in zip(x,y_) if (x[self.protected_attribute] == self.protected_val)]
+            countz1 = [(x,l) for (x,l) in zip(x,y_) if (x[self.protected_attribute] != self.protected_val)]
+            return len(countz0), len(countz1), len(pos_z0), len(pos_z1)
+
     def fit(self,X,y):
         self.total_classes = len(np.unique(y))
         self.feature_list = list(X.columns)
@@ -80,13 +88,22 @@ class DecisionTree(Tree):
         self.node_count = 1
         self.fairness_importance_score = {}
         self.feature_important_score = {}
-
+        self.weighted_n_node_samples = {}
+        self.countz0={}
+        self.countz1={}
+        self.positivez0={}
+        self.positivez1={}
         self.X = X
         self.y = y
-        def build_tree(X_, y_, node):
+        self.total_level = 0
+        self.node_depth = {}
+        def build_tree(X_, y_, node, parent_samples,depth):
             #print("build tree for node ", node)
+            self.node_depth[node] = depth
+            self.weighted_n_node_samples[node] = parent_samples
             classes, count = np.unique(y_, return_counts=True)
             self.number_of_data_points[node] = len(y_)
+            self.countz0[node], self.countz1[node],self.positivez0[node],self.positivez1[node] = self._countzs(X_,y_)
             if node == 0:
                 valuey, county = np.unique(y_, return_counts=True)
                 pred = np.full(len(y_), np.argmax(county))
@@ -96,7 +113,7 @@ class DecisionTree(Tree):
                     s = DP(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
                 print(s)
                 self.fair_score[node] = s
-                print(self.fair_score[node])
+                #print(self.fair_score[node])
             if len(classes) == 1:
                 #print("only one class for this node")
                 #self.node_count += 1
@@ -134,21 +151,23 @@ class DecisionTree(Tree):
                 left_node = self.node_count
                 right_node = self.node_count + 1
                 self.node_count += 2
+                self.total_level += 1
                 self.children_left[node] = left_node
                 self.children_right[node] = right_node
                 self.fair_score[left_node] = self.fair_score[right_node] = fairness(left_df.to_numpy(),left_target,right_df.to_numpy(),right_target,self.protected_attribute, self.protected_val,self.fairness_metric)
-                build_tree(left_df, left_target,left_node)
-                build_tree(right_df, right_target, right_node)
-            elif giniGain < 0.01 or best_feature is None:
+                build_tree(left_df, left_target,left_node,len(y_),self.total_level)
+                build_tree(right_df, right_target, right_node,len(y_),self.total_level)
+            else:
                 self.node_count += 1
                 self.children_left[node] = -2
                 self.children_right[node] = -2
                 self.feature[node] = -2
                 self.threshold[node] = None
                 return
-        build_tree(X,y,0)
+        build_tree(X,y,0, len(y),0)
 
 
+    
     def _feature_importance(self):
         for i in self.feature_list:
             self.feature_important_score[i] = 0
@@ -156,13 +175,14 @@ class DecisionTree(Tree):
         for i in range (self.node_count):
             if i in self.feature.keys():
                 if self.feature[i] != -2:
-                    self.feature_important_score[self.feature[i]] += ((self.impurity[i] - 
-                    (self.impurity[self.children_left[i]]*self.number_of_data_points[self.children_left[i]]/self.number_of_data_points[i] + 
-                    self.impurity[self.children_right[i]]*self.number_of_data_points[self.children_right[i]]/self.number_of_data_points[i])) ** 2)
+                    self.feature_important_score[self.feature[i]] += ((self.number_of_data_points[i]*self.impurity[i] - 
+                    self.impurity[self.children_left[i]]*self.number_of_data_points[self.children_left[i]] -
+                    self.impurity[self.children_right[i]]*self.number_of_data_points[self.children_right[i]])/self.number_of_data_points[0])
                     number_of_times[self.feature[i]] += 1
         #for key, value in number_of_times.items():
         #    if value != 0:
         #        self.feature_important_score[key] /= value
+        
         return self.feature_important_score
 
     def _fairness_importance(self):
@@ -170,14 +190,40 @@ class DecisionTree(Tree):
             self.fairness_importance_score[i] = 0
         number_of_times = dict.fromkeys(self.feature_list, 0)
         for i in range (self.node_count):
+            if i == 0:
+                continue
             if i in self.feature.keys():
                 if self.feature[i] != -2:
+                #and (self.feature[self.children_left[i]] != -2 or self.feature[self.children_right[i] != -2]):
+                    #print("changed here")
                     print(self.feature[i],self.fair_score[i],self.fair_score[self.children_left[i]])
-                    self.fairness_importance_score[self.feature[i]] += (self.fair_score[i] - self.fair_score[self.children_left[i]])
+                    
+                    self.fairness_importance_score[self.feature[i]] += ((self.fair_score[self.children_left[i]] - self.fair_score[i])*(self.number_of_data_points[i]/self.number_of_data_points[0]))
                     number_of_times[self.feature[i]] += 1
-        for key, value in number_of_times.items():
-            if value != 0:
-                self.fairness_importance_score[key] /= value
+        #for key, value in number_of_times.items():
+        #    if value != 0:
+        #        self.fairness_importance_score[key] /= value
+        return self.fairness_importance_score
+
+    def _fairness_importance_depth(self,depth):
+        for i in self.feature_list:
+            self.fairness_importance_score[i] = 0
+        number_of_times = dict.fromkeys(self.feature_list, 0)
+        for i in range (self.node_count):
+            if self.node_depth[i] <= depth:
+                if i == 0:
+                    continue
+                if i in self.feature.keys():
+                    if self.feature[i] != -2:
+                    #and (self.feature[self.children_left[i]] != -2 or self.feature[self.children_right[i] != -2]):
+                        #print("changed here")
+                        #print(self.feature[i],self.fair_score[i],self.fair_score[self.children_left[i]])
+                        
+                        self.fairness_importance_score[self.feature[i]] += ((self.fair_score[self.children_left[i]] - self.fair_score[i])*(self.number_of_data_points[i]/self.number_of_data_points[0]))
+                        number_of_times[self.feature[i]] += 1
+        #for key, value in number_of_times.items():
+        #    if value != 0:
+        #        self.fairness_importance_score[key] /= value
         return self.fairness_importance_score
 
     def predict(self,x):

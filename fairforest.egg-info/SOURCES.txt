@@ -5,6 +5,7 @@ fairforest/__init__.py
 fairforest/base.py
 fairforest/d_tree.py
 fairforest/decision_tree_fairness.py
+fairforest/random_tree.py
 fairforest/utils.py
 fairforest.egg-info/PKG-INFO
 fairforest.egg-info/SOURCES.txt
