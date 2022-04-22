@@ -8,7 +8,7 @@ import warnings
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 from sklearn import tree
-
+from sklearn.ensemble import RandomForestClassifier
 #%%
 warnings.simplefilter("ignore")
 
@@ -87,61 +87,72 @@ def build_dataset(total_sample,number_of_correlated_features,number_of_important
     dataframe = pd.DataFrame(x, columns = column)
     return dataframe,y
 #%%
-total_sample = 2000
-number_of_correlated_features = 2
-number_of_important_features = 2
+total_sample = 5500
+number_of_correlated_features = 3
+number_of_important_features = 5
 number_of_uncorrelated_features = 0
 total_feature = number_of_important_features+number_of_correlated_features+1
 feature = np.arange(number_of_important_features+number_of_correlated_features+1)
 score_fairness = np.zeros(number_of_important_features+number_of_correlated_features+1)
 occlusion_fairness = np.zeros(total_feature)
 score_feature = np.zeros(number_of_important_features+number_of_correlated_features+1)
-mean_correlated_1 = [20, 20]
-mean_correlated_0 = [13, 11]
-mean_imp_1 = [50,54]
-mean_imp_0 = [49,55]
+mean_correlated_1 = [20, 20, 20]
+mean_correlated_0 = [11, 9, 7]
+mean_imp_1 = [0,4,8,12,16]
+mean_imp_0 = [-1,3,7,11,15]
 
 for i in range (1):
     dataframe, y = build_dataset(total_sample,number_of_correlated_features,number_of_important_features,number_of_uncorrelated_features,mean_correlated_0,mean_correlated_1,mean_imp_0,mean_imp_1)
     #####protected_attribute,protected_value,protected_feature,fairness_metric
     model_dtree = d_tree.DecisionTree(total_feature - 1,0,str(total_feature),2)
-    model_dtree.fit(dataframe,y)
-    sklearn_dataframe = dataframe.copy().drop(str(total_feature))
+    model_dtree.fit(dataframe.copy(),y)
+    sklearn_dataframe = dataframe.copy().drop(columns=[str(total_feature)])
+    
+    testX,testy = build_dataset(5000,number_of_correlated_features,number_of_important_features,number_of_uncorrelated_features,mean_correlated_0,mean_correlated_1,mean_imp_0,mean_imp_1)
+    testX_without_protected_all = testX.copy().drop(columns=str(total_feature))
+    sklearn_tree_all = RandomForestClassifier()
+    sklearn_tree_all.fit(sklearn_dataframe,y)
+    pred_all = sklearn_tree_all.predict(testX_without_protected_all)
+    fairness_all = utils.DP(testX.to_numpy(),pred_all,testy,total_feature-1,0)
     for j in range (total_feature - 1):
-        print(j+1)
-        train_data = sklearn_dataframe.copy().drop(str(j+1))
-        sklearn_tree= tree.DecisionTreeClassifier(dataframe,y)
-        testX,testy = build_dataset(500,number_of_correlated_features,number_of_important_features,number_of_uncorrelated_features,mean_correlated_0,mean_correlated_1,mean_imp_0,mean_imp_1)
-        prediction = sklearn_tree.predict(testX)
-        occlusion_fairness[j] = utils.DP(testX.to_numpy(),testy,prediction,total_feature,0)
+        #print(j+1)
+        train_data = sklearn_dataframe.copy().drop(columns=[str(j+1)])
+        sklearn_tree= RandomForestClassifier()
+        sklearn_tree.fit(train_data,y)
+        
+        testX_without_protected = testX.copy().drop(columns=[str(total_feature),str(j+1)])
+        prediction = sklearn_tree.predict(testX_without_protected)
+
+        occlusion_fairness[j] += (fairness_all - utils.DP(testX.to_numpy(),prediction,testy,total_feature-1,0))
     fairness_importance = model_dtree._fairness_importance()
     feature_importance = model_dtree._feature_importance()
     for key, value in fairness_importance.items():
-        score_fairness[int(key)-1]=value
+        score_fairness[int(key)-1] += value
     for key, value in feature_importance.items():
-        score_feature[int(key)-1]=value
+        score_feature[int(key)-1] += value
 for i in range (total_feature):
     score_fairness[i] /= 1
     score_feature[i] /= 1
+    occlusion_fairness[i] /= 1
 
-with open('Results/Synthetic/no_corr/result_dp_2_2.txt', 'a') as f:
+with open('Results/Synthetic/no_corr/result_eqoptest_g.txt', 'a') as f:
     f.writelines(str(score_fairness))
     f.writelines("\n")
     f.writelines(str(score_feature))
 
-with open('Results/Synthetic/no_corr/result_occlusion_dp_2_2.txt', 'a') as f:
-    f.writelines(str(score_fairness))
-    f.writelines("\n")
-    f.writelines(str(score_feature))
+with open('Results/Synthetic/no_corr/result_occlusion_eqop_test_g.txt', 'a') as f:
+    f.writelines(str(occlusion_fairness))
 #%%
-utils.draw_plot(feature,score_fairness,"Results/Synthetic/no_corr/dp_fairness_2_2_1.pdf","Fairness Importance")
-utils.draw_plot(feature,score_fairness,"Results/Synthetic/no_corr/dp_fairness_occlusion_2_2_1.pdf","Fairness")
-utils.draw_plot(feature,score_feature,"Results/Synthetic/no_corr/dp_feature_2_2_1.pdf","Accuracy Importance")
+utils.draw_plot(feature,score_fairness,"Results/Synthetic/no_corr/eqop_fairness_test_g.pdf","Fairness Importance")
+utils.draw_plot(feature,occlusion_fairness,"Results/Synthetic/no_corr/eqop_fairness_occlusion_test_g.pdf","Fairness")
+utils.draw_plot(feature,score_feature,"Results/Synthetic/no_corr/eqop_feature_test_g.pdf","Accuracy Importance")
 
 
 
-
-
-#
 
  # %%
+
+# %%
+print(occlusion_fairness)
+
+# %%

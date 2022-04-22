@@ -4,11 +4,12 @@ from .base import Tree
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 import pandas as pd
-from .utils import fairness, gini, ma,eqop,DP
+from .utils import fairness, gini, ma,eqop,DP, fairness2, fairness_wrong
 from collections import Counter
+
 # %%
 class DecisionTree(Tree):
-    def __init__(self, protected_attribute, protected_value, protected_feature,fairness_metric):
+    def __init__(self, protected_attribute, protected_value, protected_feature,fairness_metric,m_tries = 1):
         super().__init__()
         
         self.children_left = {}
@@ -23,8 +24,9 @@ class DecisionTree(Tree):
         self.protected_val = protected_value
         self.protected_feature = protected_feature
         self.fairness_metric = fairness_metric
+        self.m_tries = m_tries
     
-    def _best_split(self,X,y):
+    def _best_split(self,X,y,m_tries):
         #print("spliting")
         df = X.copy()
         df['Y'] = y
@@ -36,6 +38,12 @@ class DecisionTree(Tree):
         best_value = None
         f_list = self.feature_list.copy()
         f_list.remove(self.protected_feature)
+        choices = np.arange(1,self.feature_size,1)
+        tries = int(self.feature_size/m_tries)
+        try_with = np.random.choice(choices,size=tries)
+        for i in f_list:
+            if int(i) not in try_with:
+                f_list.remove(i)
         for feature in f_list:
             Xdf = df.dropna().sort_values(feature)
             xmeans = ma(Xdf[feature].unique(), 2)
@@ -97,7 +105,7 @@ class DecisionTree(Tree):
         self.y = y
         self.total_level = 0
         self.node_depth = {}
-        def build_tree(X_, y_, node, parent_samples,depth):
+        def build_tree(X_, y_, node, parent_samples,depth,m_tries):
             #print("build tree for node ", node)
             self.node_depth[node] = depth
             self.weighted_n_node_samples[node] = parent_samples
@@ -108,9 +116,9 @@ class DecisionTree(Tree):
                 valuey, county = np.unique(y_, return_counts=True)
                 pred = np.full(len(y_), np.argmax(county))
                 if self.fairness_metric == 1:
-                    s = eqop(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
+                    s = 1 - eqop(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
                 elif self.fairness_metric == 2:
-                    s = DP(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
+                    s = 1 - DP(X_.to_numpy(),y_,pred,self.protected_attribute,self.protected_val)
                 print(s)
                 self.fair_score[node] = s
                 #print(self.fair_score[node])
@@ -137,7 +145,7 @@ class DecisionTree(Tree):
             self.leaf_to_posterior[node] = posterior
             #prediction = np.full(len(y_), np.argmax(posterior))
             #self.parity[node] = eqop(X_.to_numpy(),y,prediction,self.protected_attribute, self.protected_val)
-            best_feature, best_value, giniGain = self._best_split(X_,y_)
+            best_feature, best_value, giniGain = self._best_split(X_,y_,m_tries)
             if best_feature is not None:
                 df = X_.copy()
                 df['Y'] = y_
@@ -155,8 +163,8 @@ class DecisionTree(Tree):
                 self.children_left[node] = left_node
                 self.children_right[node] = right_node
                 self.fair_score[left_node] = self.fair_score[right_node] = fairness(left_df.to_numpy(),left_target,right_df.to_numpy(),right_target,self.protected_attribute, self.protected_val,self.fairness_metric)
-                build_tree(left_df, left_target,left_node,len(y_),self.total_level)
-                build_tree(right_df, right_target, right_node,len(y_),self.total_level)
+                build_tree(left_df, left_target,left_node,len(y_),self.total_level,m_tries)
+                build_tree(right_df, right_target, right_node,len(y_),self.total_level,m_tries)
             else:
                 self.node_count += 1
                 self.children_left[node] = -2
@@ -164,7 +172,7 @@ class DecisionTree(Tree):
                 self.feature[node] = -2
                 self.threshold[node] = None
                 return
-        build_tree(X,y,0, len(y),0)
+        build_tree(X,y,0, len(y),0,self.m_tries)
 
 
     
@@ -196,7 +204,7 @@ class DecisionTree(Tree):
                 if self.feature[i] != -2:
                 #and (self.feature[self.children_left[i]] != -2 or self.feature[self.children_right[i] != -2]):
                     #print("changed here")
-                    print(self.feature[i],self.fair_score[i],self.fair_score[self.children_left[i]])
+                    #print(self.feature[i],self.fair_score[i],self.fair_score[self.children_left[i]])
                     
                     self.fairness_importance_score[self.feature[i]] += ((self.fair_score[self.children_left[i]] - self.fair_score[i])*(self.number_of_data_points[i]/self.number_of_data_points[0]))
                     number_of_times[self.feature[i]] += 1
@@ -231,3 +239,6 @@ class DecisionTree(Tree):
     def predict_proba(self, X):
         return
 # %%
+
+
+

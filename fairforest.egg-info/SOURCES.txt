@@ -1,6 +1,7 @@
 LICENSE
 README.md
 setup.py
+fairforest/RandomForest.py
 fairforest/__init__.py
 fairforest/base.py
 fairforest/d_tree.py
