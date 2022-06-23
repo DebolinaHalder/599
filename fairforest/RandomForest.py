@@ -22,8 +22,13 @@ class RandomForest(Tree):
         self.accuracy_importance_score = {}
 
     def _fit_tree(self,X,y):
+        df = X.copy()
+        df['Y'] = y
+        df = df.sample(frac = 1, replace = True)
+        y_ = df['Y'].to_numpy()
+        X_ = df.drop("Y", axis=1, inplace=False)
         tree = DecisionTree(self.protected_attribute, self.protected_value, self.protected_feature,self.fairness_metric,self.m_tries)
-        tree.fit(X,y)
+        tree.fit(X_,y_)
         return tree
     def fit(self,X,y):
         self.total_classes = len(np.unique(y))

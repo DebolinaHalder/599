@@ -7,6 +7,13 @@ from fairforest import d_tree,RandomForest
 from sklearn import tree, ensemble
 from fairforest import utils
 import math
+from sklearn import tree
+from cProfile import label
+from turtle import color
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 #%%
 compas_dataset = datasets["compas"]()
 X_train, X_test = compas_dataset.get_X(format=pd.DataFrame)
@@ -21,6 +28,14 @@ X_df = X_df.replace("African-American",1)
 test_df = pd.concat([X_test,sensitive_features_test],axis=1)
 test_df = test_df.replace("Caucasian",0)
 test_df = test_df.replace("African-American",1)
+
+
+#%%
+dtree = tree.DecisionTreeClassifier(max_depth=5)
+dtree.fit(X_df,y_train)
+plt.figure(figsize=(12,12))  # set plot size (denoted in inches)
+tree.plot_tree(dtree, fontsize=10)
+
 # %%
 y = y_train.to_numpy()
 X = X_df.to_numpy()
@@ -86,12 +101,7 @@ utils.draw_plot(feature,score_fairness,"Results/synthetic_gaussian/eqop_fairness
 utils.draw_plot(feature,occlusion_fairness,"Results/synthetic_gaussian/eqop_fairness_occlusion_compas.pdf","Fairness")
 utils.draw_plot(feature,score_feature,"Results/synthetic_gaussian/eqop_feature_compas.pdf","Accuracy Importance")
 # %%
-from cProfile import label
-from turtle import color
-import pandas as pd
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
+
 
 #%%
 
@@ -138,31 +148,34 @@ plt.show()
 
 # %%
 sns.set_context("talk")
-fig, axs = plt.subplots(3,figsize=(12,22.5))
+width = 0.3
+fig, axs = plt.subplots(1,figsize=(16,10))
 df = pd.read_csv("Results/synthetic_gaussian/results_compas_eqop.csv")
 df = df[:-1]
 x1 = df['fairness'].copy()
 x2 = df['occlusion'].copy()
-x3 = df['accuracy'].copy()
+#x3 = df['accuracy'].copy()
 y = X_train.columns
-axs[0].bar(y, x1, color = 'r',label = "fairness_importance_score")
-axs[0].set_ylabel("Fairness Importance Score")
-axs[0].title.set_text("(A) Fairness Feature Importance Score")
-#axs[0].set_xlabel("feature")
-axs[0].legend(loc='lower right')
-axs[1].bar(y, x2, color = 'b', label = "Occlusion Score")
-axs[0].set_xticks([])
-axs[1].set_ylabel("Occlusion Fairness Importance Score")
+y_temp = np.arange(1,11)
+axs.bar(y_temp-width,  x1,width=width, color = 'r',label = "Fairness_importance_score")
+axs.set_ylabel("Importance Score")
+#axs[0].title.set_text("(A) Fairness Feature Importance Score")
+axs.set_xlabel("Feature")
+#axs[0].legend(loc='lower right')
+axs.bar(y_temp, x2, width = width, color = 'b', label = "Fairness Occlusion Score")
+#axs[0].set_xticks([])
+#axs[1].set_ylabel("Occlusion Fairness Importance Score")
 #axs[1].set_xlabel("feature")
-axs[1].title.set_text("(B)Occlusion Fairness Feature Importance Score")
-axs[1].legend(loc='lower right')
-axs[1].set_xticks([])
-axs[2].bar(y, x3, color = 'g', label = "Accuracy Score")
-axs[2].set_ylabel("Accuracy Importance Score")
-axs[2].set_xlabel("feature")
-axs[2].title.set_text("(C)Accuracy Feature Importance Score")
-axs[2].legend(loc='lower right')
-axs[2].set_xticklabels(y, rotation=20, ha='right')
-plt.savefig("Results/synthetic_gaussian/eqop_compas_all.pdf")
+#axs[1].title.set_text("(B)Occlusion Fairness Feature Importance Score")
+#axs[1].legend(loc='lower right')
+#axs[1].set_xticks([])
+#axs[2].bar(y, x3, color = 'g', label = "Accuracy Score")
+#axs[2].set_ylabel("Accuracy Importance Score")
+#axs[2].set_xlabel("feature")
+#axs[2].title.set_text("(C)Accuracy Feature Importance Score")
+axs.legend(loc='lower right')
+axs.set_xticks(list(range(1,11)))
+axs.set_xticklabels(y, rotation=30, ha='right')
+plt.savefig("Results/synthetic_gaussian/eqop_compas_all_1.pdf")
 plt.show()
 # %%
